@@ -38,7 +38,9 @@
         const API_URL = "https://script.google.com/macros/s/AKfycbxLJYQe6QZCiDARD1I5ngkqS3hjfzT1oYki9rlClbNpFf-fjLwXv_Lhp_TOcjLgOTZt/exec"; 
         let adminSession = null;
         let usersData = [];
-        let fullCatalog = []; // Aquí guardaremos las apps
+        let fullCatalog = []; 
+        let dbAreas = []; 
+        let modulesData = []; 
 
         // ==========================================
         // 2. HANDSHAKE CON GENAPPS
@@ -46,12 +48,12 @@
         window.addEventListener("message", (event) => {
             if (event.data && event.data.type === 'SESSION_SYNC') {
                 adminSession = event.data.user;
-                fullCatalog = event.data.catalog || []; // Recibimos el catálogo
+                fullCatalog = event.data.catalog || []; 
                 
                 if (event.data.theme === 'dark') document.documentElement.classList.add('dark');
                 else document.documentElement.classList.remove('dark');
                 
-                renderModulesChecklist(); // Dibujamos los checkboxes
+                renderModulesChecklist(); 
                 fetchAdminData(); // Cargamos la tabla
             } else if (event.data && event.data.type === 'THEME_UPDATE') {
                 if (event.data.theme === 'dark') document.documentElement.classList.add('dark');
@@ -64,11 +66,8 @@
         };
 
         // ==========================================
-        // 3. LÓGICA DE DATOS Y UI
+        // 3. LÓGICA DE DATOS
         // ==========================================
-        let dbAreas = []; // Memoria para las áreas
-        let modulesData = []; // Memoria para los módulos completos
-
         async function fetchAdminData() {
             showLoader(true);
             try {
@@ -83,8 +82,8 @@
                     dbAreas = data.areas;
                     modulesData = data.modules;
                     
-                    poblarSelectAreas(); // Llenamos el dropdown de áreas
-                    applyFilterAndSort(); // Renderizamos la tabla
+                    poblarSelectAreas(); 
+                    applyFilterAndSort(); 
                 } else {
                     alert("Error: " + data.message);
                 }
@@ -95,14 +94,152 @@
             }
         }
 
+        // ==========================================
+        // LÓGICA DE BÚSQUEDA Y ORDENAMIENTO
+        // ==========================================
+        let currentSort = { column: null, direction: 'asc' };
+
+        function filterTable() { applyFilterAndSort(); }
+
+        function applyFilterAndSort() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            let dataToRender = usersData;
+
+            if (query) {
+                dataToRender = usersData.filter(u => 
+                    (u.nombre || '').toLowerCase().includes(query) || 
+                    (u.email || '').toLowerCase().includes(query) ||
+                    (u.usuario || '').toLowerCase().includes(query) ||
+                    (u.rol || '').toLowerCase().includes(query) ||
+                    (u.area || '').toLowerCase().includes(query) ||
+                    (u.jefatura || '').toLowerCase().includes(query)
+                );
+            }
+
+            if (currentSort.column) {
+                dataToRender.sort((a, b) => {
+                    let valA = (a[currentSort.column] || '').toString().toLowerCase();
+                    let valB = (b[currentSort.column] || '').toString().toLowerCase();
+                    
+                    if (currentSort.column === 'usuario') {
+                        valA = (a.nombre || a.usuario || '').toString().toLowerCase();
+                        valB = (b.nombre || b.usuario || '').toString().toLowerCase();
+                    } else if (currentSort.column === 'area') {
+                        valA = (a.jefatura || a.area || '').toString().toLowerCase();
+                        valB = (b.jefatura || b.area || '').toString().toLowerCase();
+                    }
+
+                    if (valA < valB) return currentSort.direction === 'asc' ? -1 : 1;
+                    if (valA > valB) return currentSort.direction === 'asc' ? 1 : -1;
+                    return 0;
+                });
+            }
+
+            renderTable(dataToRender);
+        }
+
+        function sortTable(column) {
+            if (currentSort.column === column) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.column = column;
+                currentSort.direction = 'asc';
+            }
+
+            document.querySelectorAll('thead i').forEach(icon => {
+                icon.classList.add('hidden');
+                icon.classList.remove('ph-caret-up', 'ph-caret-down');
+            });
+            
+            const activeIcon = document.getElementById(`sort-icon-${column}`);
+            if (activeIcon) {
+                activeIcon.classList.remove('hidden');
+                activeIcon.classList.add(currentSort.direction === 'asc' ? 'ph-caret-up' : 'ph-caret-down');
+            }
+
+            applyFilterAndSort();
+        }
+
+        // ==========================================
+        // RENDERIZADO DE TABLA
+        // ==========================================
+        function renderTable(users) {
+            const tbody = document.getElementById('usersTableBody');
+            tbody.innerHTML = '';
+
+            users.forEach(u => {
+                const isAdmin = (u.rol || '').toUpperCase() === 'ADMINISTRADOR';
+                const roleBadge = isAdmin 
+                    ? `<span class="px-2.5 py-1 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded-lg text-xs font-bold tracking-wide uppercase">Admin</span>`
+                    : `<span class="px-2.5 py-1 bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 rounded-lg text-xs font-bold tracking-wide uppercase">${u.rol}</span>`;
+                
+                const modulosHTML = isAdmin 
+                    ? `<span class="text-xs text-gray-400 italic">Acceso Total</span>`
+                    : `<div class="flex flex-wrap gap-1 max-w-[200px]">${(u.modulos||'').split(',').filter(m=>m.trim()).map(m => `<span class="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded-md border border-blue-100 dark:border-blue-800/50">${m.trim()}</span>`).join('')}</div>`;
+
+                const tr = document.createElement('tr');
+                tr.className = "border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors";
+                tr.innerHTML = `
+                    <td class="py-4 px-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-white flex items-center justify-center font-black text-lg flex-shrink-0">
+                                ${u.nombre ? u.nombre.charAt(0).toUpperCase() : '?'}
+                            </div>
+                            <div class="flex flex-col min-w-0">
+                                <span class="font-bold text-sm text-gray-800 dark:text-white truncate">${u.nombre || 'Sin Perfil'}</span>
+                                <span class="text-xs text-gray-500 dark:text-gray-400 truncate">${u.email || u.usuario}</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="py-4 px-4 whitespace-nowrap">${roleBadge}</td>
+                    <td class="py-4 px-4 whitespace-nowrap text-sm font-medium text-gray-600 dark:text-gray-300">${u.jefatura || u.area || '-'}</td>
+                    <td class="py-4 px-4 hidden md:table-cell">${modulosHTML}</td>
+                    <td class="py-4 px-4 text-right whitespace-nowrap">
+                        <button onclick="openModal('${u.email}')" class="p-2 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:text-brand-600 dark:hover:text-brand-400 rounded-lg transition-colors">
+                            <i class="ph-fill ph-pencil-simple text-lg"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // ==========================================
+        // ÁREAS Y CHECKBOXES
+        // ==========================================
+        function poblarSelectAreas() {
+            const selects = ['editArea', 'c_area'];
+            selects.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.innerHTML = '<option value="">Sin Área</option>';
+                    dbAreas.forEach(area => {
+                        el.innerHTML += `<option value="${area.id}" data-macro="${area.macro}">${area.id} - ${area.nombre}</option>`;
+                    });
+                }
+            });
+        }
+
+        function onAreaChange(selectId, targetId) {
+            const selectArea = document.getElementById(selectId);
+            const selectedOption = selectArea.options[selectArea.selectedIndex];
+            const jefaturaInput = document.getElementById(targetId);
+            
+            if (selectedOption && selectedOption.value !== "") {
+                jefaturaInput.value = selectedOption.getAttribute('data-macro');
+            } else {
+                jefaturaInput.value = "";
+            }
+        }
+
         function renderModulesChecklist() {
             const container = document.getElementById('modulesChecklistContainer');
+            if(!container) return;
             container.innerHTML = '';
             
             fullCatalog.forEach(app => {
                 const div = document.createElement('div');
                 div.className = 'flex items-start gap-3 p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors shadow-sm';
-                // El ID se pasa a mayúsculas para ser consistente con la BD
                 div.innerHTML = `
                     <div class="flex items-center h-5 mt-0.5">
                         <input type="checkbox" id="chk_${app.id}" value="${app.id.toUpperCase()}" class="w-4 h-4 text-brand-600 bg-gray-100 border-gray-300 rounded focus:ring-brand-500 dark:focus:ring-brand-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer module-checkbox">
@@ -116,16 +253,31 @@
             });
         }
 
-    function openModal(userEmail) {
-            const user = usersData.find(u => u.email === userEmail);
-            if (!user) return;
+        function toggleCheckboxesByRole(roleValue) {
+            const isAdmin = roleValue.toUpperCase() === 'ADMINISTRADOR';
+            document.querySelectorAll('.module-checkbox').forEach(cb => {
+                if (isAdmin) {
+                    cb.checked = true;
+                    cb.disabled = true;
+                } else {
+                    cb.disabled = false;
+                }
+            });
+        }
 
-            document.getElementById('originalEmail').value = user.email; // Guardamos el correo original como ID
+        // ==========================================
+        // MODAL DE EDICIÓN
+        // ==========================================
+        function openModal(userEmail) {
+            const user = usersData.find(u => u.email === userEmail);
+            if (!user) return; 
+
+            document.getElementById('originalEmail').value = user.email; 
             document.getElementById('displayNombre').textContent = user.nombre;
             
-            document.getElementById('editEmail').value = user.email;
-            document.getElementById('editNombre').value = user.nombre;
-            document.getElementById('editUsuario').value = user.usuario;
+            document.getElementById('editEmail').value = user.email || '';
+            document.getElementById('editNombre').value = user.nombre || '';
+            document.getElementById('editUsuario').value = user.usuario || '';
             document.getElementById('editPassword').value = user.password || '';
             document.getElementById('editTelefono').value = user.telefono || '';
             document.getElementById('editCargo').value = user.cargo || '';
@@ -134,7 +286,6 @@
             document.getElementById('editRol').value = user.rol || 'Operario';
             document.getElementById('editActivo').value = user.activo === 'NO' ? 'NO' : 'SI';
             
-            // Lógica de Checkboxes
             const userModules = (user.modulos || '').split(',').map(m => m.trim().toUpperCase());
             const isAdmin = (user.rol || '').toUpperCase() === 'ADMINISTRADOR';
             
@@ -146,6 +297,12 @@
             const modal = document.getElementById('editModal');
             modal.classList.remove('hidden'); modal.classList.add('flex');
             requestAnimationFrame(() => { modal.classList.remove('opacity-0'); modal.children[0].classList.remove('scale-95'); });
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('editModal');
+            modal.classList.add('opacity-0'); modal.children[0].classList.add('scale-95');
+            setTimeout(() => { modal.classList.remove('flex'); modal.classList.add('hidden'); }, 300);
         }
 
         async function saveUserFull(e) {
@@ -186,29 +343,15 @@
 
                 if (data.status === 'success') {
                     closeModal();
-                    fetchAdminData(); // Recargamos todo
+                    fetchAdminData(); 
                 } else { alert("Error: " + data.message); }
             } catch (err) { alert("Error al guardar."); } 
             finally { btn.innerHTML = 'Guardar Todo'; btn.disabled = false; }
         }
 
-        // Función dinámica cuando cambias el select del ROL
-        function toggleCheckboxesByRole(roleValue) {
-            const isAdmin = roleValue.toUpperCase() === 'ADMINISTRADOR';
-            document.querySelectorAll('.module-checkbox').forEach(cb => {
-                if (isAdmin) {
-                    cb.checked = true;
-                    cb.disabled = true;
-                } else {
-                    cb.disabled = false;
-                }
-            });
-        }
-
-        
-
-        // === LÓGICA DE CREACIÓN (USUARIOS Y MÓDULOS) ===
-
+        // ==========================================
+        // MODALES DE CREACIÓN
+        // ==========================================
         function openCreateUserModal() {
             document.getElementById('c_user').value = '';
             document.getElementById('c_pass').value = '';
@@ -246,7 +389,7 @@
                 rol: document.getElementById('c_rol').value,
                 area: document.getElementById('c_area').value,
                 jefatura: document.getElementById('c_jefa').value,
-                modulos: "" // Se crea sin módulos inicialmente, luego se le editan
+                modulos: "" 
             };
 
             try {
@@ -257,7 +400,7 @@
                 const data = await response.json();
                 if (data.status === 'success') {
                     closeCreateUserModal();
-                    fetchUsers(); // Actualiza la tabla automáticamente
+                    fetchAdminData();
                 } else { alert("Error: " + data.message); }
             } catch (err) { alert("Error de red."); } finally {
                 btn.innerHTML = 'Crear Usuario'; btn.disabled = false;
@@ -311,192 +454,10 @@
                 btn.innerHTML = 'Crear Módulo'; btn.disabled = false;
             }
         }
-       
-
-        // ==========================================
-        // 4. LÓGICA DE UI (Renderizado)
-        // ==========================================
-        function renderTable(users) {
-            const tbody = document.getElementById('usersTableBody');
-            tbody.innerHTML = '';
-
-            users.forEach(u => {
-                const isAdmin = u.rol.toUpperCase() === 'ADMINISTRADOR';
-                const roleBadge = isAdmin 
-                    ? `<span class="px-2.5 py-1 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded-lg text-xs font-bold tracking-wide uppercase">Admin</span>`
-                    : `<span class="px-2.5 py-1 bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 rounded-lg text-xs font-bold tracking-wide uppercase">${u.rol}</span>`;
-                
-                const modulosHTML = isAdmin 
-                    ? `<span class="text-xs text-gray-400 italic">Acceso Total</span>`
-                    : `<div class="flex flex-wrap gap-1 max-w-[200px]">${u.modulos.split(',').filter(m=>m.trim()).map(m => `<span class="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded-md border border-blue-100 dark:border-blue-800/50">${m.trim()}</span>`).join('')}</div>`;
-
-                const tr = document.createElement('tr');
-                tr.className = "border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors";
-                tr.innerHTML = `
-                    <td class="py-4 px-4">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-white flex items-center justify-center font-black text-lg flex-shrink-0">
-                                ${u.nombre ? u.nombre.charAt(0).toUpperCase() : '?'}
-                            </div>
-                            <div class="flex flex-col min-w-0">
-                                <span class="font-bold text-sm text-gray-800 dark:text-white truncate">${u.nombre || 'Sin Perfil'}</span>
-                                <span class="text-xs text-gray-500 dark:text-gray-400 truncate">${u.email || u.usuario}</span>
-                            </div>
-                        </div>
-                    </td>
-                    <td class="py-4 px-4 whitespace-nowrap">${roleBadge}</td>
-                    <td class="py-4 px-4 whitespace-nowrap text-sm font-medium text-gray-600 dark:text-gray-300">${u.jefatura || u.area || '-'}</td>
-                    <td class="py-4 px-4 hidden md:table-cell">${modulosHTML}</td>
-                   <td class="py-4 px-4 text-right whitespace-nowrap">
-                        <button onclick="openModal('${u.usuario}')" class="p-2 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:text-brand-600 dark:hover:text-brand-400 rounded-lg transition-colors">
-                            <i class="ph-fill ph-pencil-simple text-lg"></i>
-                        </button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
-
-        function openModal(userId) {
-            // 1. Buscamos los datos exactos del usuario en nuestra memoria
-            const user = usersData.find(u => u.usuario === userId);
-            if (!user) return; // Por seguridad
-
-            // 2. Llenamos los campos del formulario
-            document.getElementById('editUsuario').value = user.usuario;
-            document.getElementById('displayNombre').textContent = user.nombre;
-            document.getElementById('editRol').value = user.rol;
-            
-            // 3. Lógica de Checkboxes de Módulos
-            const userModules = (user.modulos || '').split(',').map(m => m.trim().toUpperCase());
-            const isAdmin = user.rol.toUpperCase() === 'ADMINISTRADOR';
-            
-            document.querySelectorAll('.module-checkbox').forEach(cb => {
-                cb.checked = isAdmin || userModules.includes(cb.value);
-                cb.disabled = isAdmin; // Si es admin, no se pueden desmarcar
-            });
-
-            // 4. Mostramos el Modal con la animación
-            const modal = document.getElementById('editModal');
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-            requestAnimationFrame(() => {
-                modal.classList.remove('opacity-0');
-                modal.children[0].classList.remove('scale-95');
-            });
-        }
-
-        function closeModal() {
-            const modal = document.getElementById('editModal');
-            modal.classList.add('opacity-0');
-            modal.children[0].classList.add('scale-95');
-            setTimeout(() => {
-                modal.classList.remove('flex');
-                modal.classList.add('hidden');
-            }, 300);
-        }
 
         function showLoader(show) {
             document.getElementById('loader').style.display = show ? 'flex' : 'none';
         }
-
-     // ==========================================
-        // LÓGICA DE BÚSQUEDA Y ORDENAMIENTO
-        // ==========================================
-        let currentSort = { column: null, direction: 'asc' };
-
-        function filterTable() {
-            applyFilterAndSort();
-        }
-
-        function applyFilterAndSort() {
-            const query = document.getElementById('searchInput').value.toLowerCase();
-            let dataToRender = usersData;
-
-            // 1. Filtrado Profundo (Múltiples columnas)
-            if (query) {
-                dataToRender = usersData.filter(u => 
-                    (u.nombre || '').toLowerCase().includes(query) || 
-                    (u.email || '').toLowerCase().includes(query) ||
-                    (u.usuario || '').toLowerCase().includes(query) ||
-                    (u.rol || '').toLowerCase().includes(query) ||
-                    (u.cargo || '').toLowerCase().includes(query) ||
-                    (u.area || '').toLowerCase().includes(query) ||
-                    (u.jefatura || '').toLowerCase().includes(query) ||
-                    (u.modulos || '').toLowerCase().includes(query)
-                );
-            }
-
-            // 2. Ordenamiento
-            if (currentSort.column) {
-                dataToRender.sort((a, b) => {
-                    let valA = (a[currentSort.column] || '').toString().toLowerCase();
-                    let valB = (b[currentSort.column] || '').toString().toLowerCase();
-                    
-                    // Ajuste para columnas combinadas en la vista
-                    if (currentSort.column === 'usuario') {
-                        valA = (a.nombre || a.usuario || '').toString().toLowerCase();
-                        valB = (b.nombre || b.usuario || '').toString().toLowerCase();
-                    } else if (currentSort.column === 'area') {
-                        valA = (a.jefatura || a.area || '').toString().toLowerCase();
-                        valB = (b.jefatura || b.area || '').toString().toLowerCase();
-                    }
-
-                    if (valA < valB) return currentSort.direction === 'asc' ? -1 : 1;
-                    if (valA > valB) return currentSort.direction === 'asc' ? 1 : -1;
-                    return 0;
-                });
-            }
-
-            renderTable(dataToRender);
-        }
-
-        function sortTable(column) {
-            // Cambiar dirección si tocamos la misma columna
-            if (currentSort.column === column) {
-                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
-            } else {
-                currentSort.column = column;
-                currentSort.direction = 'asc';
-            }
-
-            // Actualizar UI de los íconos (Flechitas)
-            document.querySelectorAll('thead i').forEach(icon => {
-                icon.classList.add('hidden');
-                icon.classList.remove('ph-caret-up', 'ph-caret-down');
-            });
-            
-            const activeIcon = document.getElementById(`sort-icon-${column}`);
-            if (activeIcon) {
-                activeIcon.classList.remove('hidden');
-                activeIcon.classList.add(currentSort.direction === 'asc' ? 'ph-caret-up' : 'ph-caret-down');
-            }
-
-            applyFilterAndSort();
-        }
-
-        function poblarSelectAreas() {
-            const selectArea = document.getElementById('editArea');
-            if(!selectArea) return;
-            selectArea.innerHTML = '<option value="">Sin Área</option>';
-            
-            dbAreas.forEach(area => {
-                selectArea.innerHTML += `<option value="${area.id}" data-macro="${area.macro}">${area.id} - ${area.nombre}</option>`;
-            });
-        }
-
-        function onAreaChange() {
-            const selectArea = document.getElementById('editArea');
-            const selectedOption = selectArea.options[selectArea.selectedIndex];
-            const jefaturaInput = document.getElementById('editJefatura');
-            
-            if (selectedOption && selectedOption.value !== "") {
-                jefaturaInput.value = selectedOption.getAttribute('data-macro');
-            } else {
-                jefaturaInput.value = "";
-            }
-        }
-        
     </script>
 
     <header class="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 z-10 shrink-0">
@@ -547,7 +508,7 @@
                         </tr>
                     </thead>
                     <tbody id="usersTableBody">
-                        </tbody>
+                    </tbody>
                 </table>
             </div>
         </div>
@@ -594,7 +555,7 @@
                         <input type="text" id="editUsuario" class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none" required>
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Nueva Contraseña (Opcional)</label>
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Contraseña Actual</label>
                         <input type="text" id="editPassword" placeholder="Dejar en blanco para no cambiar" class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none">
                     </div>
 
@@ -609,7 +570,7 @@
 
                     <div>
                         <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Área (DB_AREAS)</label>
-                        <select id="editArea" onchange="onAreaChange()" class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none">
+                        <select id="editArea" onchange="onAreaChange('editArea', 'editJefatura')" class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none">
                             </select>
                     </div>
                     <div>
@@ -632,7 +593,7 @@
                     <div class="sm:col-span-2">
                         <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Módulos Permitidos</label>
                         <div id="modulesChecklistContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1 bg-gray-50 dark:bg-gray-800 p-2 rounded-xl border border-gray-200 dark:border-gray-700">
-                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -641,10 +602,10 @@
                     <button type="submit" id="btnSaveFull" class="flex-1 py-3.5 rounded-xl font-bold text-white bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 transition-all shadow-lg">Guardar Todo</button>
                 </div>
             </form>
-            
         </div>
     </div>
-<div id="createUserModal" class="fixed inset-0 bg-gray-900/40 dark:bg-black/60 z-[100] hidden items-center justify-center backdrop-blur-sm transition-opacity duration-300 opacity-0">
+
+    <div id="createUserModal" class="fixed inset-0 bg-gray-900/40 dark:bg-black/60 z-[100] hidden items-center justify-center backdrop-blur-sm transition-opacity duration-300 opacity-0">
         <div class="bg-white dark:bg-gray-900 rounded-[2rem] shadow-2xl w-full max-w-lg p-8 transform scale-95 transition-all duration-300 border border-gray-200 dark:border-gray-700 m-4 max-h-[90vh] overflow-y-auto">
             <div class="flex justify-between items-center mb-6">
                 <h3 class="text-xl font-black text-gray-800 dark:text-white flex items-center gap-2">
@@ -655,7 +616,7 @@
             <form onsubmit="createNewUser(event)" class="space-y-4">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">ID Usuario *</label>
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Usuario (Login) *</label>
                         <input type="text" id="c_user" class="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none" required>
                     </div>
                     <div>
@@ -667,8 +628,8 @@
                         <input type="text" id="c_nombre" class="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none" required>
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Email</label>
-                        <input type="email" id="c_email" class="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Correo Electrónico *</label>
+                        <input type="email" id="c_email" class="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none" required>
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Teléfono</label>
@@ -690,12 +651,13 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Área (ID)</label>
-                        <input type="text" id="c_area" placeholder="Ej: AREA-01" class="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Área (DB_AREAS)</label>
+                        <select id="c_area" onchange="onAreaChange('c_area', 'c_jefa')" class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none">
+                        </select>
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Jefatura</label>
-                        <input type="text" id="c_jefa" placeholder="Ej: PRODUCCION" class="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                        <input type="text" id="c_jefa" readonly class="w-full px-3 py-2.5 bg-gray-200 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl text-sm outline-none cursor-not-allowed text-gray-500">
                     </div>
                 </div>
                 <div class="flex gap-3 pt-4">
