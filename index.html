@@ -328,8 +328,8 @@
                     <td class="py-4 px-4 whitespace-nowrap">${roleBadge}</td>
                     <td class="py-4 px-4 whitespace-nowrap text-sm font-medium text-gray-600 dark:text-gray-300">${u.jefatura || u.area || '-'}</td>
                     <td class="py-4 px-4 hidden md:table-cell">${modulosHTML}</td>
-                    <td class="py-4 px-4 text-right whitespace-nowrap">
-                        <button onclick='openModal(${JSON.stringify(u)})' class="p-2 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:text-brand-600 dark:hover:text-brand-400 rounded-lg transition-colors">
+                   <td class="py-4 px-4 text-right whitespace-nowrap">
+                        <button onclick="openModal('${u.usuario}')" class="p-2 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:text-brand-600 dark:hover:text-brand-400 rounded-lg transition-colors">
                             <i class="ph-fill ph-pencil-simple text-lg"></i>
                         </button>
                     </td>
@@ -338,12 +338,26 @@
             });
         }
 
-        function openModal(user) {
+        function openModal(userId) {
+            // 1. Buscamos los datos exactos del usuario en nuestra memoria
+            const user = usersData.find(u => u.usuario === userId);
+            if (!user) return; // Por seguridad
+
+            // 2. Llenamos los campos del formulario
             document.getElementById('editUsuario').value = user.usuario;
             document.getElementById('displayNombre').textContent = user.nombre;
             document.getElementById('editRol').value = user.rol;
-            document.getElementById('editModulos').value = user.modulos;
             
+            // 3. Lógica de Checkboxes de Módulos
+            const userModules = (user.modulos || '').split(',').map(m => m.trim().toUpperCase());
+            const isAdmin = user.rol.toUpperCase() === 'ADMINISTRADOR';
+            
+            document.querySelectorAll('.module-checkbox').forEach(cb => {
+                cb.checked = isAdmin || userModules.includes(cb.value);
+                cb.disabled = isAdmin; // Si es admin, no se pueden desmarcar
+            });
+
+            // 4. Mostramos el Modal con la animación
             const modal = document.getElementById('editModal');
             modal.classList.remove('hidden');
             modal.classList.add('flex');
