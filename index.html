@@ -188,6 +188,110 @@
             }
         }
 
+        // === LÓGICA DE CREACIÓN (USUARIOS Y MÓDULOS) ===
+
+        function openCreateUserModal() {
+            document.getElementById('c_user').value = '';
+            document.getElementById('c_pass').value = '';
+            document.getElementById('c_nombre').value = '';
+            document.getElementById('c_email').value = '';
+            document.getElementById('c_tel').value = '';
+            document.getElementById('c_cargo').value = '';
+            document.getElementById('c_area').value = '';
+            document.getElementById('c_jefa').value = '';
+            
+            const m = document.getElementById('createUserModal');
+            m.classList.remove('hidden'); m.classList.add('flex');
+            requestAnimationFrame(() => { m.classList.remove('opacity-0'); m.children[0].classList.remove('scale-95'); });
+        }
+
+        function closeCreateUserModal() {
+            const m = document.getElementById('createUserModal');
+            m.classList.add('opacity-0'); m.children[0].classList.add('scale-95');
+            setTimeout(() => { m.classList.remove('flex'); m.classList.add('hidden'); }, 300);
+        }
+
+        async function createNewUser(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btnCreateUser');
+            btn.innerHTML = '<i class="ph ph-spinner animate-spin"></i> Creando...';
+            btn.disabled = true;
+
+            const userData = {
+                usuario: document.getElementById('c_user').value,
+                password: document.getElementById('c_pass').value,
+                nombre: document.getElementById('c_nombre').value,
+                email: document.getElementById('c_email').value,
+                telefono: document.getElementById('c_tel').value,
+                cargo: document.getElementById('c_cargo').value,
+                rol: document.getElementById('c_rol').value,
+                area: document.getElementById('c_area').value,
+                jefatura: document.getElementById('c_jefa').value,
+                modulos: "" // Se crea sin módulos inicialmente, luego se le editan
+            };
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'addUser', adminUser: adminSession.usuario, userData })
+                });
+                const data = await response.json();
+                if (data.status === 'success') {
+                    closeCreateUserModal();
+                    fetchUsers(); // Actualiza la tabla automáticamente
+                } else { alert("Error: " + data.message); }
+            } catch (err) { alert("Error de red."); } finally {
+                btn.innerHTML = 'Crear Usuario'; btn.disabled = false;
+            }
+        }
+
+        function openCreateModuleModal() {
+            document.getElementById('m_id').value = '';
+            document.getElementById('m_titulo').value = '';
+            document.getElementById('m_info').value = '';
+            document.getElementById('m_link').value = '';
+            document.getElementById('m_img').value = '';
+            
+            const m = document.getElementById('createModuleModal');
+            m.classList.remove('hidden'); m.classList.add('flex');
+            requestAnimationFrame(() => { m.classList.remove('opacity-0'); m.children[0].classList.remove('scale-95'); });
+        }
+
+        function closeCreateModuleModal() {
+            const m = document.getElementById('createModuleModal');
+            m.classList.add('opacity-0'); m.children[0].classList.add('scale-95');
+            setTimeout(() => { m.classList.remove('flex'); m.classList.add('hidden'); }, 300);
+        }
+
+        async function createNewModule(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btnCreateModule');
+            btn.innerHTML = '<i class="ph ph-spinner animate-spin"></i> Creando...';
+            btn.disabled = true;
+
+            const moduleData = {
+                id: document.getElementById('m_id').value,
+                orden: document.getElementById('m_orden').value || 99,
+                titulo: document.getElementById('m_titulo').value,
+                info: document.getElementById('m_info').value,
+                link: document.getElementById('m_link').value,
+                imagen: document.getElementById('m_img').value
+            };
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'addModule', adminUser: adminSession.usuario, moduleData })
+                });
+                const data = await response.json();
+                if (data.status === 'success') {
+                    closeCreateModuleModal();
+                    alert("Módulo creado. Cierra y vuelve a abrir GenApps para que se actualice el catálogo del menú.");
+                } else { alert("Error: " + data.message); }
+            } catch (err) { alert("Error de red."); } finally {
+                btn.innerHTML = 'Crear Módulo'; btn.disabled = false;
+            }
+        }
        
 
         // ==========================================
@@ -274,16 +378,26 @@
         }
     </script>
 
-    <header class="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 z-10 shrink-0">
+    <header class="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 z-10 shrink-0">
         <div>
             <h1 class="text-2xl font-black text-gray-800 dark:text-white tracking-tight flex items-center gap-2">
                 <i class="ph-fill ph-users text-brand-600"></i> Gestión de Usuarios
             </h1>
             <p class="text-sm text-gray-500 dark:text-gray-400 font-medium mt-1">Control de accesos y roles de la plataforma.</p>
         </div>
-        <div class="relative w-full sm:w-72">
-            <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg"></i>
-            <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="Buscar por nombre o correo..." class="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-gray-800 border-transparent focus:border-brand-500 focus:bg-white dark:focus:bg-gray-900 rounded-xl text-sm outline-none transition-all">
+        <div class="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+            <div class="relative w-full sm:w-64">
+                <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg"></i>
+                <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="Buscar usuario..." class="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-gray-800 border-transparent focus:border-brand-500 focus:bg-white dark:focus:bg-gray-900 rounded-xl text-sm outline-none transition-all">
+            </div>
+            <div class="flex gap-2 w-full sm:w-auto">
+                <button onclick="openCreateModuleModal()" class="flex-1 sm:flex-none px-4 py-2 bg-gray-800 dark:bg-white dark:text-gray-900 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-sm">
+                    <i class="ph ph-plus-circle text-lg"></i> Módulo
+                </button>
+                <button onclick="openCreateUserModal()" class="flex-1 sm:flex-none px-4 py-2 bg-brand-600 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-brand-700 shadow-lg shadow-brand-600/20 transition-all">
+                    <i class="ph ph-user-plus text-lg"></i> Usuario
+                </button>
+            </div>
         </div>
     </header>
 
@@ -355,6 +469,111 @@
             
         </div>
     </div>
+<div id="createUserModal" class="fixed inset-0 bg-gray-900/40 dark:bg-black/60 z-[100] hidden items-center justify-center backdrop-blur-sm transition-opacity duration-300 opacity-0">
+        <div class="bg-white dark:bg-gray-900 rounded-[2rem] shadow-2xl w-full max-w-lg p-8 transform scale-95 transition-all duration-300 border border-gray-200 dark:border-gray-700 m-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-black text-gray-800 dark:text-white flex items-center gap-2">
+                    <i class="ph-fill ph-user-plus text-brand-600"></i> Nuevo Usuario
+                </h3>
+                <button onclick="closeCreateUserModal()" class="text-gray-400 hover:text-gray-800 dark:hover:text-white transition-colors"><i class="ph ph-x text-xl"></i></button>
+            </div>
+            <form onsubmit="createNewUser(event)" class="space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">ID Usuario *</label>
+                        <input type="text" id="c_user" class="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none" required>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Contraseña *</label>
+                        <input type="text" id="c_pass" class="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none" required>
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Nombre Completo *</label>
+                        <input type="text" id="c_nombre" class="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none" required>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Email</label>
+                        <input type="email" id="c_email" class="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Teléfono</label>
+                        <input type="text" id="c_tel" class="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Cargo</label>
+                        <input type="text" id="c_cargo" class="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Rol *</label>
+                        <select id="c_rol" class="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                            <option value="Operario">Operario</option>
+                            <option value="Asistente">Asistente</option>
+                            <option value="Supervisor">Supervisor</option>
+                            <option value="Jefe">Jefe</option>
+                            <option value="Gerente">Gerente</option>
+                            <option value="Administrador">Administrador</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Área (ID)</label>
+                        <input type="text" id="c_area" placeholder="Ej: AREA-01" class="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Jefatura</label>
+                        <input type="text" id="c_jefa" placeholder="Ej: PRODUCCION" class="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                    </div>
+                </div>
+                <div class="flex gap-3 pt-4">
+                    <button type="button" onclick="closeCreateUserModal()" class="flex-1 py-3 rounded-xl font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 transition-colors">Cancelar</button>
+                    <button type="submit" id="btnCreateUser" class="flex-1 py-3 rounded-xl font-bold text-white bg-brand-600 hover:bg-brand-700 transition-all shadow-lg">Crear Usuario</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
+    <div id="createModuleModal" class="fixed inset-0 bg-gray-900/40 dark:bg-black/60 z-[100] hidden items-center justify-center backdrop-blur-sm transition-opacity duration-300 opacity-0">
+        <div class="bg-white dark:bg-gray-900 rounded-[2rem] shadow-2xl w-full max-w-md p-8 transform scale-95 transition-all duration-300 border border-gray-200 dark:border-gray-700 m-4">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-black text-gray-800 dark:text-white flex items-center gap-2">
+                    <i class="ph-fill ph-app-window text-gray-800 dark:text-white"></i> Nuevo Módulo
+                </h3>
+                <button onclick="closeCreateModuleModal()" class="text-gray-400 hover:text-gray-800 dark:hover:text-white transition-colors"><i class="ph ph-x text-xl"></i></button>
+            </div>
+            <form onsubmit="createNewModule(event)" class="space-y-4">
+                <div class="flex gap-4">
+                    <div class="w-1/3">
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">ID Corto *</label>
+                        <input type="text" id="m_id" placeholder="Ej: APP" class="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none uppercase" required>
+                    </div>
+                    <div class="w-2/3">
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Título Público *</label>
+                        <input type="text" id="m_titulo" class="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none" required>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Descripción / Info</label>
+                    <input type="text" id="m_info" class="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Enlace URL *</label>
+                    <input type="url" id="m_link" placeholder="https://..." class="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none" required>
+                </div>
+                <div class="flex gap-4">
+                    <div class="w-1/3">
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Orden (Nº)</label>
+                        <input type="number" id="m_orden" value="99" class="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                    </div>
+                    <div class="w-2/3">
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Imagen (URL)</label>
+                        <input type="url" id="m_img" placeholder="https://..." class="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                    </div>
+                </div>
+                <div class="flex gap-3 pt-4">
+                    <button type="button" onclick="closeCreateModuleModal()" class="flex-1 py-3 rounded-xl font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 transition-colors">Cancelar</button>
+                    <button type="submit" id="btnCreateModule" class="flex-1 py-3 rounded-xl font-bold text-white bg-gray-800 dark:bg-white dark:text-gray-900 transition-all shadow-lg">Crear Módulo</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </body>
 </html>
