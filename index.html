@@ -48,13 +48,29 @@
         window.addEventListener("message", (event) => {
             if (event.data && event.data.type === 'SESSION_SYNC') {
                 adminSession = event.data.user;
+                
+                // VERIFICACIÓN DE SEGURIDAD EN EL FRONTEND
+                if (!adminSession || adminSession.rol.toUpperCase() !== 'ADMINISTRADOR') {
+                    document.getElementById('unauthorized-screen').innerHTML = `
+                        <i class="ph-fill ph-shield-warning text-6xl text-red-500 mb-4"></i>
+                        <h2 class="text-2xl font-black text-red-600 dark:text-red-400">Intrusión Detectada</h2>
+                        <p class="text-gray-500 font-medium mt-2">No tienes nivel de Administrador para ver esto.</p>
+                    `;
+                    return; // Detiene la ejecución, la pantalla sigue bloqueada
+                }
+
+                // Si pasa la seguridad, ocultamos el candado y mostramos la app
+                document.getElementById('unauthorized-screen').classList.add('hidden');
+                document.getElementById('app-content').classList.remove('hidden');
+                document.getElementById('app-content').classList.add('flex');
+
                 fullCatalog = event.data.catalog || []; 
                 
                 if (event.data.theme === 'dark') document.documentElement.classList.add('dark');
                 else document.documentElement.classList.remove('dark');
                 
                 renderModulesChecklist(); 
-                fetchAdminData(); // Cargamos la tabla
+                fetchAdminData(); 
             } else if (event.data && event.data.type === 'THEME_UPDATE') {
                 if (event.data.theme === 'dark') document.documentElement.classList.add('dark');
                 else document.documentElement.classList.remove('dark');
