@@ -126,7 +126,7 @@
             document.getElementById('editEmail').value = user.email;
             document.getElementById('editNombre').value = user.nombre;
             document.getElementById('editUsuario').value = user.usuario;
-            document.getElementById('editPassword').value = ''; // En blanco por seguridad
+            document.getElementById('editPassword').value = user.password || '';
             document.getElementById('editTelefono').value = user.telefono || '';
             document.getElementById('editCargo').value = user.cargo || '';
             document.getElementById('editArea').value = user.area || '';
