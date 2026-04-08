@@ -35,35 +35,36 @@
         // ==========================================
         // 1. CONFIGURACIÓN Y ESTADO
         // ==========================================
-        const API_URL = "https://script.google.com/macros/s/AKfycbxLJYQe6QZCiDARD1I5ngkqS3hjfzT1oYki9rlClbNpFf-fjLwXv_Lhp_TOcjLgOTZt/exec"; // <-- TU URL AQUÍ
+        const API_URL = "https://script.google.com/macros/s/AKfycbxLJYQe6QZCiDARD1I5ngkqS3hjfzT1oYki9rlClbNpFf-fjLwXv_Lhp_TOcjLgOTZt/exec"; 
         let adminSession = null;
         let usersData = [];
+        let fullCatalog = []; // Aquí guardaremos las apps
 
         // ==========================================
-        // 2. HANDSHAKE CON GENAPPS (Recepción de sesión)
+        // 2. HANDSHAKE CON GENAPPS
         // ==========================================
         window.addEventListener("message", (event) => {
             if (event.data && event.data.type === 'SESSION_SYNC') {
                 adminSession = event.data.user;
-                const theme = event.data.theme;
-                if (theme === 'dark') document.documentElement.classList.add('dark');
+                fullCatalog = event.data.catalog || []; // Recibimos el catálogo
+                
+                if (event.data.theme === 'dark') document.documentElement.classList.add('dark');
                 else document.documentElement.classList.remove('dark');
                 
-                // Una vez que tenemos la sesión del admin, cargamos la tabla
-                fetchUsers();
+                renderModulesChecklist(); // Dibujamos los checkboxes
+                fetchUsers(); // Cargamos la tabla
             } else if (event.data && event.data.type === 'THEME_UPDATE') {
                 if (event.data.theme === 'dark') document.documentElement.classList.add('dark');
                 else document.documentElement.classList.remove('dark');
             }
         });
 
-        // Avisamos al Hub que ya estamos listos para recibir la sesión
         window.onload = () => {
             window.parent.postMessage({ type: 'MODULO_LISTO' }, '*');
         };
 
         // ==========================================
-        // 3. LÓGICA DE DATOS
+        // 3. LÓGICA DE DATOS Y UI
         // ==========================================
         async function fetchUsers() {
             showLoader(true);
@@ -87,6 +88,63 @@
             }
         }
 
+        function renderModulesChecklist() {
+            const container = document.getElementById('modulesChecklistContainer');
+            container.innerHTML = '';
+            
+            fullCatalog.forEach(app => {
+                const div = document.createElement('div');
+                div.className = 'flex items-start gap-3 p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors shadow-sm';
+                // El ID se pasa a mayúsculas para ser consistente con la BD
+                div.innerHTML = `
+                    <div class="flex items-center h-5 mt-0.5">
+                        <input type="checkbox" id="chk_${app.id}" value="${app.id.toUpperCase()}" class="w-4 h-4 text-brand-600 bg-gray-100 border-gray-300 rounded focus:ring-brand-500 dark:focus:ring-brand-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer module-checkbox">
+                    </div>
+                    <label for="chk_${app.id}" class="flex flex-col cursor-pointer select-none w-full">
+                        <span class="text-sm font-bold text-gray-800 dark:text-gray-200 leading-tight">${app.titulo}</span>
+                        <span class="text-[10px] font-bold text-gray-400 dark:text-gray-500 tracking-widest uppercase">ID: ${app.id}</span>
+                    </label>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function openModal(user) {
+            document.getElementById('editUsuario').value = user.usuario;
+            document.getElementById('displayNombre').textContent = user.nombre;
+            document.getElementById('editRol').value = user.rol;
+            
+            // Lógica de Checkboxes
+            const userModules = (user.modulos || '').split(',').map(m => m.trim().toUpperCase());
+            const isAdmin = user.rol.toUpperCase() === 'ADMINISTRADOR';
+            
+            document.querySelectorAll('.module-checkbox').forEach(cb => {
+                cb.checked = isAdmin || userModules.includes(cb.value);
+                cb.disabled = isAdmin; // Si es admin, no se pueden desmarcar
+            });
+
+            const modal = document.getElementById('editModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            requestAnimationFrame(() => {
+                modal.classList.remove('opacity-0');
+                modal.children[0].classList.remove('scale-95');
+            });
+        }
+
+        // Función dinámica cuando cambias el select del ROL
+        function toggleCheckboxesByRole(roleValue) {
+            const isAdmin = roleValue.toUpperCase() === 'ADMINISTRADOR';
+            document.querySelectorAll('.module-checkbox').forEach(cb => {
+                if (isAdmin) {
+                    cb.checked = true;
+                    cb.disabled = true;
+                } else {
+                    cb.disabled = false;
+                }
+            });
+        }
+
         async function saveUserAccess(e) {
             e.preventDefault();
             const btn = document.getElementById('btnSave');
@@ -95,7 +153,13 @@
 
             const targetUser = document.getElementById('editUsuario').value;
             const newRole = document.getElementById('editRol').value;
-            const newModules = document.getElementById('editModulos').value;
+            
+            // Recolectar IDs marcados
+            let newModules = "";
+            if (newRole.toUpperCase() !== 'ADMINISTRADOR') {
+                const checkedBoxes = Array.from(document.querySelectorAll('.module-checkbox:checked'));
+                newModules = checkedBoxes.map(cb => cb.value).join(', ');
+            }
 
             try {
                 const response = await fetch(API_URL, {
@@ -123,6 +187,8 @@
                 btn.disabled = false;
             }
         }
+
+       
 
         // ==========================================
         // 4. LÓGICA DE UI (Renderizado)
@@ -254,7 +320,7 @@
                 </h3>
                 <button onclick="closeModal()" class="text-gray-400 hover:text-gray-800 dark:hover:text-white transition-colors"><i class="ph ph-x text-xl"></i></button>
             </div>
-            
+
             <form onsubmit="saveUserAccess(event)" class="space-y-5">
                 <input type="hidden" id="editUsuario">
                 
@@ -265,7 +331,7 @@
 
                 <div>
                     <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Nivel de Rol</label>
-                    <select id="editRol" class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none font-medium">
+                    <select id="editRol" onchange="toggleCheckboxesByRole(this.value)" class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none font-medium">
                         <option value="Administrador">Administrador (Acceso Total)</option>
                         <option value="Gerente">Gerente</option>
                         <option value="Jefe">Jefe</option>
@@ -276,9 +342,9 @@
                 </div>
 
                 <div>
-                    <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Módulos Permitidos (IDs separados por coma)</label>
-                    <textarea id="editModulos" rows="3" placeholder="Ej: POE, CAT, ESE" class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none font-mono text-sm leading-relaxed resize-none"></textarea>
-                    <p class="text-xs text-gray-500 mt-2"><i class="ph-fill ph-info"></i> Usa los IDs oficiales de la pestaña Inicio (Ej: POE, CAT). Si es Administrador, ignora este campo.</p>
+                    <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Módulos Permitidos</label>
+                    <div id="modulesChecklistContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                        </div>
                 </div>
 
                 <div class="flex gap-3 pt-2">
@@ -286,6 +352,7 @@
                     <button type="submit" id="btnSave" class="flex-1 py-3.5 rounded-xl font-bold text-white bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 transition-all shadow-lg shadow-brand-500/30">Guardar Cambios</button>
                 </div>
             </form>
+            
         </div>
     </div>
 
